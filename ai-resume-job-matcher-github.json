@@ -1,0 +1,471 @@
+{
+  "name": "AI Resume Job matcher",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI Resume Job Matcher",
+        "formDescription": "Upload your resume and paste a job description to see how well your resume matches the role.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Resume",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Job Description PDF",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -384,
+        0
+      ],
+      "id": "d93087c8-368a-4cc9-9207-d926f387b6d8",
+      "name": "On form submission",
+      "webhookId": "c225913a-1b7a-4f41-b896-2330b3af535a"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a7f2665b-19d1-4436-830d-b1668b0fee6e",
+              "name": "resume_text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "0da13cfa-d392-4869-9277-6448e5bd9100",
+              "name": "job_description",
+              "value": "={{ $json[\"Job Description\"] || $json.jd_pdf_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "95fa1820-0ed9-4626-b286-636ec0b1ac19",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are an expert technical recruiter.\n\nAnalyze the candidate's resume against the job description.\n\nRESUME:\n{{ $json.resume_text }}\n\nJOB DESCRIPTION:\n{{ $json.job_description }}\n\nReturn the analysis as JSON using exactly the structure specified by the output schema.\n\nImportant:\n- Only consider a skill as a match if there is evidence for it in the resume.\n- If a skill is not demonstrated in the resume, put it under missing_skills.\n- Do not invent experience, technologies, projects, metrics, or qualifications.\n- The match score must be between 0 and 100.\n- Base the score on how well the candidate's demonstrated skills and experience match the requirements of the job.\n- Keep suggestions specific to this job description."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "schema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"match_score\": {\n      \"type\": \"number\",\n      \"description\": \"Overall resume to job description match score from 0 to 100.\"\n    },\n    \"matching_skills\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"Skills explicitly demonstrated in the resume that match the job description.\"\n    },\n    \"missing_skills\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"Important skills from the job description that are not demonstrated in the resume.\"\n    },\n    \"strengths\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"The candidate's strongest areas relevant to this job.\"\n    },\n    \"suggestions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"Specific suggestions for improving the resume for this job.\"\n    }\n  },\n  \"required\": [\n    \"match_score\",\n    \"matching_skills\",\n    \"missing_skills\",\n    \"strengths\",\n    \"suggestions\"\n  ],\n  \"additionalProperties\": false\n}"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        0
+      ],
+      "id": "a9a688e6-dc76-4ab3-98ab-75c461196a1d",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst result = data.output[0].content[0].text;\n\nreturn [\n  {\n    json: result\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "2d971218-a1e0-4110-be3a-a621cd32bb1b",
+      "name": "flatten AI"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fcb29d8a-5f42-41c0-8928-b4871cfb0429",
+              "leftValue": "={{ $json.match_score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1216,
+        0
+      ],
+      "id": "e7192189-4a45-42dc-9057-584e5ab81a88",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      result: \"Needs Improvement\",\n      match_score: $json.match_score,\n      matching_skills: $json.matching_skills,\n      missing_skills: $json.missing_skills,\n      strengths: $json.strengths,\n      suggestions: $json.suggestions\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        96
+      ],
+      "id": "e278821c-97c2-4b8b-aadf-f06d69a7deac",
+      "name": "Needs Improvement"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      result: \"Strong Match\",\n      match_score: $json.match_score,\n      matching_skills: $json.matching_skills,\n      strengths: $json.strengths,\n      suggestions: $json.suggestions\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -96
+      ],
+      "id": "5135a836-cabe-4ab6-bd02-ac3a867ab3bd",
+      "name": "Strong Match"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1808,
+        32
+      ],
+      "id": "273adba8-0120-4306-bef3-a929cc531aec",
+      "name": "Merge",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Format lists\nconst matchingSkills = (data.matching_skills || [])\n  .map(skill => `✓ ${skill}`)\n  .join('\\n');\n\nconst missingSkills = (data.missing_skills || [])\n  .map(skill => `✗ ${skill}`)\n  .join('\\n');\n\nconst strengths = (data.strengths || [])\n  .map(strength => `• ${strength}`)\n  .join('\\n');\n\nconst suggestions = (data.suggestions || [])\n  .map((suggestion, index) => `${index + 1}) ${suggestion}`)\n  .join('\\n');\n\n// Match status\nconst status =\n  data.match_score >= 80\n    ? \"STRONG MATCH\"\n    : \"NEEDS IMPROVEMENT\";\n\n// Clean report\nconst report = `\n${status}\n\nMATCH SCORE\n${data.match_score}/100\n\n\nMATCHING SKILLS\n${matchingSkills || \"None identified\"}\n\n\nMISSING SKILLS\n${missingSkills || \"None identified\"}\n\n\nKEY STRENGTHS\n${strengths || \"None identified\"}\n\n\nRECOMMENDATIONS\n${suggestions || \"No recommendations available\"}\n`;\n\nreturn [\n  {\n    json: {\n      result: data.result,\n      match_score: data.match_score,\n      report: report.trim()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        32
+      ],
+      "id": "2da35256-cc69-49db-a49d-dff8d541407e",
+      "name": "Create clean report"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Resume Match Report",
+        "completionMessage": "={{ $json.report }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        2256,
+        32
+      ],
+      "id": "b4a9c820-7f55-42df-ac37-f695d6a4e845",
+      "name": "Form",
+      "webhookId": "210dce76-a69c-416d-a944-bcb30b3ca08d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn [\n  {\n    json: {\n      ...data,\n      resume_text: data.text\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        -112
+      ],
+      "id": "518df802-ae9f-46e3-8a8c-7c949d786f9c",
+      "name": "Prepare Resume"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn [\n  {\n    json: {\n      ...data,\n      jd_pdf_text: data.text\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        96
+      ],
+      "id": "118cf46a-3daa-4b7c-b38a-ac6e4fb60f8a",
+      "name": "Prepare JD"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        256,
+        0
+      ],
+      "id": "1a9bf35e-72bb-41d9-8dca-34c3e1c7fdee",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "=Job_Description_PDF",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -128,
+        96
+      ],
+      "id": "ac218b7b-2938-4193-bb07-9ec149f7a23c",
+      "name": "extract JD"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Resume",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -112,
+        -112
+      ],
+      "id": "8b400b9f-8330-4d55-b243-c419fd75b7f5",
+      "name": "extract Resume"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "extract Resume",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "extract JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "flatten AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "flatten AI": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Strong Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Improvement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Improvement": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Strong Match": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Create clean report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create clean report": {
+      "main": [
+        [
+          {
+            "node": "Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Resume": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare JD": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract JD": {
+      "main": [
+        [
+          {
+            "node": "Prepare JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract Resume": {
+      "main": [
+        [
+          {
+            "node": "Prepare Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3759f643-7579-4e90-9096-2cf76817256b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f9ed6654c1eeb8f1049314cad640b600232d2a46232e3669e2c4bd49772df64"
+  },
+  "nodeGroups": [],
+  "id": "KZln1j1nBJq3aN8d",
+  "tags": []
+}
