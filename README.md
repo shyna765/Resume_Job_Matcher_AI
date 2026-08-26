@@ -6,6 +6,9 @@ An n8n workflow that compares a candidate's resume against a job description and
 
 The workflow is triggered by a web form where a user uploads their resume and provides a job description. The resume and job description are parsed, sent to an OpenAI model (GPT-5-mini) with a structured prompt, and the model returns a structured evaluation. The result is formatted into a readable report and shown back to the user in the same form.
 
+## workflow
+![Workflow](workflow.png)
+
 ## Workflow Steps
 
 1. **On form submission** – Collects the resume (PDF, required), a job description (text), and/or a job description PDF.
